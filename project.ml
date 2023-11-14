@@ -225,8 +225,70 @@ let rec lookup_env x e =
 let rec eval : exp -> env -> value
 =fun exp env ->
   match exp with
+  | CONST n -> Int n
+  | VAR x -> lookup_env x env
+  | ADD (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1,v2 with
+    | Int n1, Int n2 -> Int (n1+n2)
+    | _ -> raise (Failure "Type Error"))
+  | SUB (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1,v2 with
+    | Int n1, Int n2 -> Int (n1 - n2)
+    | _ -> raise (Failure "Type Error"))
+  | MUL (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1, v2 with
+    | Int n1, Int n2 -> Int (n1*n2)
+    | _ -> raise (Failure "Type Error"))
+  | Div (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1, v2 with
+    | Int n1, Int n2 -> if n2 <> 0 then Int(n1/n2) else raise (Failure "Division-by-Zero")
+    | _ -> raise (Failure "Type Error"))
+  | EQUAL (e1, e2) -> 
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1, v2 with
+    | Int n1, Int n2 -> if n1=n2 then true else false
+    | _ -> raise (Failure "Type Error"))
+  | LESS (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1, v2 with
+    | Int n1, Int n2 -> if n1<n2 then true else false)
+  | NOT e -> 
+    let v = eval e env in
+    (match v with
+    | true -> false
+    | false -> true
+    | _ -> raise (Failure "Type Error"))
+  | NIL -> []
+  | CONS (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1, v2 with
+    | Int n, List l -> List (n::l)
+    | Bool b, List l -> List (b::l)
+    | _ -> raise (Failure "Type Error"))
+  | APPEND (e1, e2) ->
+    let v1 = eval e1 env in
+    let v2 = eval e2 env in
+    (match v1, v2 with
+    | List l1, List l2 -> List (l1@l2)
+    | _ -> raise (Failure "Type Error"))
+  | HEAD e ->
+    let v = eval e env in
+    (match e with
+    | List l ->  )
   | PRINT e -> (print_endline (string_of_value (eval e env)); Unit)
-  | _ -> raise (Failure "Not implemented") (* TODO *)
+  | _ -> raise (Failure "Not implemented") (* TODO *) 
+
 
 let runml : program -> value
 =fun pgm -> eval pgm empty_env
