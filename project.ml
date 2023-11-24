@@ -222,73 +222,118 @@ let rec lookup_env x e =
   | [] -> raise (Failure ("variable " ^ x ^ " is not bound in env")) 
   | (y,v)::tl -> if x = y then v else lookup_env x tl
 
-let rec eval : exp -> env -> value
-=fun exp env ->
-  match exp with
-  | CONST n -> Int n
-  | VAR x -> lookup_env x env
-  | ADD (e1, e2) ->
+  let rec eval : exp -> env -> value
+  =fun exp env ->
+    match exp with
+    | UNIT -> Unit
+    | CONST n -> Int n
+    | TRUE -> Bool true
+    | FALSE -> Bool false
+    | VAR x -> lookup_env x env
+    | ADD (e1, e2) ->
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1,v2 with
+      | Int n1, Int n2 -> Int (n1+n2)
+      | _ -> raise (Failure "Type Error"))
+    | SUB (e1, e2) ->
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1,v2 with
+      | Int n1, Int n2 -> Int (n1 - n2)
+      | _ -> raise (Failure "Type Error"))
+    | MUL (e1, e2) ->
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1, v2 with
+      | Int n1, Int n2 -> Int (n1*n2)
+      | _ -> raise (Failure "Type Error"))
+    | DIV (e1, e2) ->
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1, v2 with
+      | Int n1, Int n2 -> if n2 <> 0 then Int(n1/n2) else raise (Failure "Division-by-Zero")
+      | _ -> raise (Failure "Type Error"))
+    | EQUAL (e1, e2) -> 
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1, v2 with
+      | Int n1, Int n2 -> Bool (n1 = n2)
+      | Bool b1, Bool b2 -> Bool (b1 = b2)
+      | _ -> raise (Failure "Type Error"))
+    | LESS (e1, e2) ->
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1, v2 with
+      | Int n1, Int n2 -> Bool (n1 < n2)
+      | _ -> raise (Failure "Type Error"))
+    | NOT e -> 
+      let v = eval e env in
+      (match v with
+      | Bool true -> Bool false
+      | Bool false -> Bool true
+      | _ -> raise (Failure "Type Error"))
+    | NIL -> List []
+    | CONS (e1, e2) ->
+      let hd = eval e1 env in
+      let tl = eval e2 env in
+      (match tl with
+      | List tl -> List (hd::tl)
+      | _ -> raise (Failure "Type Error"))
+    | APPEND (e1, e2) ->
+      let v1 = eval e1 env in
+      let v2 = eval e2 env in
+      (match v1, v2 with
+      | List l1, List l2 -> List (l1@l2)
+      | _ -> raise (Failure "Type Error"))
+    | HEAD e ->
+      let v = eval e env in
+      (match v with
+      | List (h::s) -> h
+      | _ -> raise (Failure "Type Error"))
+    | TAIL e ->
+      let v = eval e env in
+      (match v with
+      | List(h::s) -> List s
+      | _ -> raise (Failure "Type Error"))
+    | ISNIL e ->
+      let v = eval e env in
+      (match v with
+      | List []-> Bool true
+      | List(v::s) -> Bool false
+      | _ -> raise (Failure "Type Error"))
+    | IF (e1, e2, e3) ->
+      let v = eval e1 env in
+      (match v with
+        | Bool v -> if v then eval e2 env else eval e3 env
+        | _ -> raise (Failure "Type Error"))
+    | LET (x, e1, e2) ->
+      let v1 = eval e1 env in
+      eval e2 (extend_env (x, v1) env) 
+  | LETREC (f, x, e1, e2) ->
+     let new_env = extend_env (f, RecProcedure (f, x, e1, env)) env in
+     eval e2 new_env
+  | LETMREC ( (f, x, ef), (g, y, eg), e) ->
+    let new_env = extend_env (f, MRecProcedure(f,x,ef,g,y,eg,env)) (extend_env (g, MRecProcedure(g,y,eg,f,x,ef,env)) env) in
+    eval e new_env
+  | PROC (x, e) -> Procedure (x, e, env)
+  | CALL (e1, e2) -> 
     let v1 = eval e1 env in
     let v2 = eval e2 env in
-    (match v1,v2 with
-    | Int n1, Int n2 -> Int (n1+n2)
-    | _ -> raise (Failure "Type Error"))
-  | SUB (e1, e2) ->
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1,v2 with
-    | Int n1, Int n2 -> Int (n1 - n2)
-    | _ -> raise (Failure "Type Error"))
-  | MUL (e1, e2) ->
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1, v2 with
-    | Int n1, Int n2 -> Int (n1*n2)
-    | _ -> raise (Failure "Type Error"))
-  | Div (e1, e2) ->
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1, v2 with
-    | Int n1, Int n2 -> if n2 <> 0 then Int(n1/n2) else raise (Failure "Division-by-Zero")
-    | _ -> raise (Failure "Type Error"))
-  | EQUAL (e1, e2) -> 
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1, v2 with
-    | Int n1, Int n2 -> if n1=n2 then true else false
-    | _ -> raise (Failure "Type Error"))
-  | LESS (e1, e2) ->
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1, v2 with
-    | Int n1, Int n2 -> if n1<n2 then true else false)
-  | NOT e -> 
-    let v = eval e env in
-    (match v with
-    | true -> false
-    | false -> true
-    | _ -> raise (Failure "Type Error"))
-  | NIL -> []
-  | CONS (e1, e2) ->
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1, v2 with
-    | Int n, List l -> List (n::l)
-    | Bool b, List l -> List (b::l)
-    | _ -> raise (Failure "Type Error"))
-  | APPEND (e1, e2) ->
-    let v1 = eval e1 env in
-    let v2 = eval e2 env in
-    (match v1, v2 with
-    | List l1, List l2 -> List (l1@l2)
-    | _ -> raise (Failure "Type Error"))
-  | HEAD e ->
-    let v = eval e env in
-    (match e with
-    | List l ->  )
+    (match v1 with
+    | Procedure (x, e, env2) -> eval e (extend_env (x, v2) env2)
+    | RecProcedure (f, x, e, env2) -> 
+      let new_env = extend_env (x, v2) (extend_env (f, v1) env2) in
+      eval e new_env
+    | MRecProcedure (f, x, e1, g, y, e2, env) ->
+        let gv = MRecProcedure (g, y, e2, f, x, e1, env) in
+        eval e1 (extend_env (x, v2) (extend_env (f, v1) (extend_env (g, gv) env)))
+    | _ -> raise (Failure "Not a function"))
+  | SEQ (e1, e2) ->
+    let _ = eval e1 env in
+    eval e2 env
   | PRINT e -> (print_endline (string_of_value (eval e env)); Unit)
   | _ -> raise (Failure "Not implemented") (* TODO *) 
-
 
 let runml : program -> value
 =fun pgm -> eval pgm empty_env
